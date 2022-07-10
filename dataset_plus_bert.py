@@ -1,10 +1,8 @@
 """
 https://huggingface.co/transformers/v3.2.0/custom_datasets.html
-
 https://huggingface.co/docs/transformers/model_doc/distilbert
 
 """
-import pdb
 import torch
 from transformers import DistilBertForSequenceClassification
 from torch.utils.data import DataLoader
