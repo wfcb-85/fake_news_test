@@ -54,3 +54,6 @@ val_dataset = IMDbDataset(val_encodings, val_labels)
 def get_datasets():
 
     return train_dataset,val_dataset,train_texts,val_texts,train_labels, val_labels
+
+def getTokenizer():
+    return tokenizer
