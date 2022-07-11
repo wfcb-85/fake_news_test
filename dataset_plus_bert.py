@@ -84,7 +84,9 @@ def trainModel(model_name):
                 accuracy,_ = evaluate_pytorch_model(p_model, val_texts, val_labels)
 
             if accuracy > best_accuracy:
+                print("saving model with name ", model_file_name)
                 torch.save(p_model , "./models/"+ model_file_name)
+                best_accuracy = accuracy
             else:
                 break
 
