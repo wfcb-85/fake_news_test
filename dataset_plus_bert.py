@@ -38,6 +38,8 @@ model_file_name = params['model_name']+ "_" + str(time.time()) + ".pt"
 
 def trainModel(model_name):
 
+    best_accuracy = 0.0
+
     if model_name == "custom":
         p_model = transfPlusEmbedModel(embedding_keys, num_labels=2, 
         embedding_dim=params['claim_author_embedding_dim'],
@@ -52,6 +54,7 @@ def trainModel(model_name):
 
     optim = AdamW(p_model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
     p_model.train()
+
     for epoch in range(params['n_epochs']):
             for batch in train_loader:
                 optim.zero_grad()
@@ -74,14 +77,17 @@ def trainModel(model_name):
             print("------------training set --------------")
             if model_name == "custom":
                 evaluate_custom_model(p_model, author_to_ix, train_texts, train_labels, trainClaimAuthors)
-                evaluate_custom_model(p_model, author_to_ix, val_texts, val_labels, valClaimAuthors)
+                accuracy,_ = evaluate_custom_model(p_model, author_to_ix, val_texts, val_labels, valClaimAuthors)
 
             elif model_name== "singleTransformer":
                 evaluate_pytorch_model(p_model, train_texts, train_labels)
-                evaluate_pytorch_model(p_model, val_texts, val_labels)
+                accuracy,_ = evaluate_pytorch_model(p_model, val_texts, val_labels)
 
-            torch.save(p_model , "./models/"+ model_file_name)
-            print("------------test set --------------")
-            p_model.train()
+            if accuracy > best_accuracy:
+                torch.save(p_model , "./models/"+ model_file_name)
+            else:
+                break
+
+            
 
 trainModel(params['model_name'])

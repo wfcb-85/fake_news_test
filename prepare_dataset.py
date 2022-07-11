@@ -27,6 +27,7 @@ def get_lists_from_dataset(dataset, author_to_ix):
     labels = []
     claimAuthors = []
     count=0
+    claimAuthorsNames=[]
 
     for i in tqdm(dataset):
         if params['transformers_input_type'] == 'claim_text':
@@ -39,8 +40,9 @@ def get_lists_from_dataset(dataset, author_to_ix):
             claimAuthors.append(author_to_ix['unknown'])
         else:
             claimAuthors.append(author_to_ix[i[2]])
+        claimAuthorsNames.append(i[2])
         count+=1
-    return texts, labels, claimAuthors
+    return texts, labels, claimAuthors, claimAuthorsNames
 
 def get_split_stat(dataset):
     classes_map = {}
@@ -85,8 +87,8 @@ def get_datasets():
     
     embedding_keys, author_to_ix = get_training_Authors(train_dataset)
 
-    train_texts, train_labels, trainClaimAuthors = get_lists_from_dataset(train_dataset, author_to_ix)
-    val_texts, val_labels, valClaimAuthors = get_lists_from_dataset(eval_dataset, author_to_ix)
+    train_texts, train_labels, trainClaimAuthors,_ = get_lists_from_dataset(train_dataset, author_to_ix)
+    val_texts, val_labels, valClaimAuthors, valClaimAuthorsNames = get_lists_from_dataset(eval_dataset, author_to_ix)
 
     train_encodings = tokenizer(train_texts, truncation=True, padding=True)
     val_encodings = tokenizer(val_texts, truncation=True, padding=True)
@@ -106,6 +108,7 @@ def get_datasets():
     data_to_return['trainClaimAuthors'] = trainClaimAuthors
     data_to_return['valClaimAuthors'] = valClaimAuthors
     data_to_return['train_classes_count'] = train_classes_count
+    data_to_return['valClaimAuthorsNames'] = valClaimAuthorsNames
     return data_to_return    
 
 def getTokenizer():
