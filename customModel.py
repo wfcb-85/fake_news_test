@@ -6,8 +6,15 @@ from transformers.modeling_outputs import TokenClassifierOutput
 
 class transfPlusEmbedModel(nn.Module):
 
-    def __init__(self, embeddingKeys, num_labels, embedding_dim):
+    def __init__(self, embeddingKeys, num_labels, embedding_dim, train_classes_count,class_balance):
         super(transfPlusEmbedModel,self).__init__()
+        self.class_weights = torch.FloatTensor([0.5,0.5])
+        if class_balance:
+            _sum = train_classes_count[0] + train_classes_count[1]
+            zero_weight = 1-(train_classes_count[0]/_sum)
+            one_weight = 1-(train_classes_count[1]/_sum)
+            self.class_weights = torch.FloatTensor([zero_weight, one_weight])
+            print("balancing ", self.class_weights)
 
         self.num_labels = num_labels
 
@@ -20,6 +27,8 @@ class transfPlusEmbedModel(nn.Module):
 
         self.embeddings = nn.Embedding(len(embeddingKeys), embedding_dim)
         self.linearEmbs = nn.Linear(embedding_dim, 2)
+
+        self.loss = nn.CrossEntropyLoss(self.class_weights)
 
 
     def forward(self, claimAuthorIX=None, input_ids=None, attention_mask=None, labels=None):
@@ -36,7 +45,8 @@ class transfPlusEmbedModel(nn.Module):
         loss = None
         if labels is not None:
 
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            #loss_fct = nn.CrossEntropyLoss()
+            #loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            loss = self.loss(logits.view(-1, self.num_labels), labels.view(-1))
         
         return TokenClassifierOutput(loss=loss, logits=logits, hidden_states=outputs.hidden_states,attentions=outputs.attentions)

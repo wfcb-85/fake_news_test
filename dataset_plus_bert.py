@@ -10,74 +10,78 @@ from transformers import DistilBertForSequenceClassification, AdamW
 
 from prepare_dataset import get_datasets
 from evaluation import evaluate_pytorch_model, evaluate_custom_model
-from config import params
 from customModel import transfPlusEmbedModel
+from config import params
+import time
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-train_dataset, val_dataset,train_texts,val_texts, train_labels,val_labels, embeddingKeys, author_to_ix, trainClaimAuthors, valClaimAuthors = get_datasets()
+dataset_data = get_datasets()
 
-customModel = transfPlusEmbedModel(embeddingKeys, 2, 32 )
-customModel.to(device)
-
-model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=2)
-model.to(device)
-
-model.train()
+train_dataset = dataset_data['train_dataset']
+val_dataset = dataset_data['val_dataset']
+train_texts = dataset_data['train_texts']
+val_texts = dataset_data['val_texts']
+train_labels = dataset_data['train_labels']
+val_labels = dataset_data['val_labels']
+embedding_keys = dataset_data['embedding_keys']
+author_to_ix = dataset_data['author_to_ix']
+trainClaimAuthors = dataset_data['trainClaimAuthors']
+valClaimAuthors = dataset_data['valClaimAuthors']
+train_classes_count = dataset_data['train_classes_count']
+#train_dataset, val_dataset,train_texts,val_texts, train_labels,val_labels, embeddingKeys, author_to_ix, trainClaimAuthors, valClaimAuthors = get_datasets()
+class_balance = params['class_balance']
 
 train_loader = DataLoader(train_dataset, batch_size=params['batch_size'], shuffle=True)
 
-optim = AdamW(model.parameters(), lr=params['lr'])
+model_file_name = params['model_name']+ "_" + str(time.time()) + ".pt"
 
-def trainCustomModel(p_model):
-    optim = AdamW(p_model.parameters(), lr=params['lr'])
+def trainModel(model_name):
+
+    if model_name == "custom":
+        p_model = transfPlusEmbedModel(embedding_keys, num_labels=2, 
+        embedding_dim=params['claim_author_embedding_dim'],
+        train_classes_count = train_classes_count,
+        class_balance=class_balance )
+
+    elif model_name == 'singleTransformer':
+        p_model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', 
+        num_labels=2)
+
+    p_model.to(device)
+
+    optim = AdamW(p_model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
     p_model.train()
-
     for epoch in range(params['n_epochs']):
-        for batch in train_loader:
-            optim.zero_grad()
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
-            claimAuthors = batch['claimAuthors'].to(device)
-            outputs = p_model(claimAuthorIX = claimAuthors,input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
-            loss.backward()
-            optim.step()
-        print("-"*20)
-        print("epoch : ", epoch)
-        p_model.eval()
-        print("------------training set --------------")
-        evaluate_custom_model(p_model, author_to_ix, train_texts, train_labels, trainClaimAuthors)
-        print("-"*20)
-        print("------------test set --------------")
-        evaluate_custom_model(p_model, author_to_ix, val_texts, val_labels, valClaimAuthors)
-        print("-"*20)
-        p_model.train()
+            for batch in train_loader:
+                optim.zero_grad()
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                labels = batch['labels'].to(device)
+                if model_name == 'custom':
+                    claimAuthors = batch['claimAuthors'].to(device)
+                    outputs = p_model(claimAuthorIX = claimAuthors,input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                    loss = outputs.loss
+                elif model_name== 'singleTransformer':
+                    outputs = p_model(input_ids, attention_mask=attention_mask, labels=labels)
+                    loss = outputs[0]
+                loss.backward()
+                optim.step()
 
-trainCustomModel(customModel)
-raise ValueError("Dsa")
+            print("-"*20)
+            print("epoch : ", epoch)
+            p_model.eval()
+            print("------------training set --------------")
+            if model_name == "custom":
+                evaluate_custom_model(p_model, author_to_ix, train_texts, train_labels, trainClaimAuthors)
+                evaluate_custom_model(p_model, author_to_ix, val_texts, val_labels, valClaimAuthors)
 
-for epoch in range(params['n_epochs']):
-    for batch in train_loader:
-        optim.zero_grad()
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        labels = batch['labels'].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs[0]
-        loss.backward()
-        optim.step()
+            elif model_name== "singleTransformer":
+                evaluate_pytorch_model(p_model, train_texts, train_labels)
+                evaluate_pytorch_model(p_model, val_texts, val_labels)
 
-    print("-"*20)
-    print("epoch : ", epoch)
-    model.eval()
-    print("------------training set --------------")
-    evaluate_pytorch_model(model, train_texts, train_labels)
-    print("-"*20)
-    print("------------test set --------------")
-    evaluate_pytorch_model(model, val_texts, val_labels)
-    print("-"*20)
-    model.train()
+            torch.save(p_model , "./models/"+ model_file_name)
+            print("------------test set --------------")
+            p_model.train()
 
-model.eval()
-
+trainModel(params['model_name'])
